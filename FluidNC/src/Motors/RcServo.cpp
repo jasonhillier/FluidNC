@@ -71,7 +71,7 @@ namespace MotorDrivers {
         if (_has_errors)
             return;
 
-        _disabled = disable;
+        _disabled = !_no_disable && disable;
         if (_disabled) {
             _write_pwm(0);
         }
