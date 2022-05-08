@@ -32,7 +32,7 @@
 const int        RoboATCSpindle_RS485_BUF_SIZE   = 127;
 const int        RoboATCSpindle_RS485_QUEUE_SIZE = 10;                                     // number of commands that can be queued up.
 const int        RESPONSE_WAIT_MS     = 1000;                                   // how long to wait for a response
-const int        RoboATCSpindle_RS485_POLL_RATE  = 250;                                    // in milliseconds between commands
+const int        RoboATCSpindle_RS485_POLL_RATE  = 2000;                                    // in milliseconds between commands
 const TickType_t response_ticks       = RESPONSE_WAIT_MS / portTICK_PERIOD_MS;  // in milliseconds between commands
 
 namespace Spindles {
@@ -73,18 +73,42 @@ namespace Spindles {
         }
 
 #ifdef DEBUG_RoboATCSpindle
-        log_debug("Setting VFD dev_speed to " << dev_speed);
+        log_info("Setting VFD dev_speed to " << dev_speed);
 #endif
 
         //[01] [06] [0201] [07D0] Set frequency to [07D0] = 200.0 Hz. (2000 is written!)
 
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x06;  // Set register command
-        data.msg[2] = 0x00; //0x02;
+        data.msg[2] = 0x00; //register_addr_high
         data.msg[3] = 0x0B; //11
         //data.msg[4] = dev_speed >> 8; - BC 11/24/21
         data.msg[4] = dev_speed >> 8;
         data.msg[5] = dev_speed & 0xFF;
+    }
+
+    RoboATCSpindle::response_parser RoboATCSpindle::get_current_speed(ModbusCommand& data)
+    {
+        data.tx_length = 6;
+        data.rx_length = 5;
+
+        // data.msg[0] is omitted (modbus address is filled in later)
+        data.msg[1] = 0x03;
+        data.msg[2] = 0x00;
+        data.msg[3] = 0x0B; //led
+        data.msg[4] = 0x00;
+        data.msg[5] = 0x01;
+
+        return [](const uint8_t* response, Spindles::RoboATCSpindle* vfd) -> bool {
+            // 01 04 04 [freq 16] [set freq 16] [crc16]
+            uint16_t frequency = (uint16_t(response[3]) << 8) | uint16_t(response[4]);
+
+            log_info("GOT LED state" << frequency);
+
+            // Store speed for synchronization
+            vfd->_sync_dev_speed = frequency;
+            return true;
+        };
     }
 
 
@@ -206,11 +230,7 @@ namespace Spindles {
                 size_t current_read = uart.readBytes(rx_message, next_cmd.rx_length, response_ticks);
                 read_length += current_read;
 
-                // Apparently some Huanyang report modbus errors in the correct way, and the rest not. Sigh.
-                // Let's just check for the condition, and truncate the first byte.
-                if (read_length > 0 && instance->_modbus_id != 0 && rx_message[0] == 0) {
-                    memmove(rx_message + 1, rx_message, read_length - 1);
-                }
+                //log_info("read " << current_read);
 
                 while (read_length < next_cmd.rx_length && current_read > 0) {
                     // Try to read more; we're not there yet...
@@ -337,7 +357,7 @@ namespace Spindles {
 
         bool critical = (sys.state == State::Cycle || state != SpindleState::Disable);
 
-        uint32_t dev_speed = mapSpeed(speed);
+        uint32_t dev_speed = speed; //
         log_debug("RPM:" << speed << " mapped to device units:" << dev_speed);
 
         if (_current_state != state) {
@@ -352,57 +372,6 @@ namespace Spindles {
                 setSpeed(dev_speed);
             }
         }
-        if (use_delay_settings()) {
-            spindleDelay(state, speed);
-        } else {
-            // _sync_dev_speed is set by a callback that handles
-            // responses from periodic get_current_speed() requests.
-            // It changes as the actual speed ramps toward the target.
-
-            _syncing = true;  // poll for speed
-
-            auto minSpeedAllowed = dev_speed > _slop ? (dev_speed - _slop) : 0;
-            auto maxSpeedAllowed = dev_speed + _slop;
-
-            int       unchanged = 0;
-            const int limit     = 20;  // 20 * 0.5s = 10 sec
-            auto      last      = _sync_dev_speed;
-
-            while ((_last_override_value == sys.spindle_speed_ovr) &&  // skip if the override changes
-                   ((_sync_dev_speed < minSpeedAllowed || _sync_dev_speed > maxSpeedAllowed) && unchanged < limit)) {
-#ifdef DEBUG_RoboATCSpindle
-                log_debug("Syncing speed. Requested: " << int(dev_speed) << " current:" << int(_sync_dev_speed));
-#endif
-                // if (!mc_dwell(500)) {
-                //     // Something happened while we were dwelling, like a safety door.
-                //     unchanged = limit;
-                //     last      = _sync_dev_speed;
-                //     break;
-                // }
-                delay(500);
-
-                // unchanged counts the number of consecutive times that we see the same speed
-                unchanged = (_sync_dev_speed == last) ? unchanged + 1 : 0;
-                last      = _sync_dev_speed;
-            }
-            _last_override_value = sys.spindle_speed_ovr;
-
-#ifdef DEBUG_RoboATCSpindle
-            log_debug("Synced speed. Requested:" << int(dev_speed) << " current:" << int(_sync_dev_speed));
-#endif
-
-            if (unchanged == limit) {
-                log_error(name() << " spindle did not reach device units " << dev_speed << ". Reported value is " << _sync_dev_speed);
-                mc_reset();
-                rtAlarm = ExecAlarm::SpindleControl;
-            }
-
-            _syncing = false;
-            // spindleDelay() sets these when it is used
-            _current_state = state;
-            _current_speed = speed;
-        }
-        //        }
     }
 
     bool RoboATCSpindle::prepareSetModeCommand(SpindleState mode, ModbusCommand& data) {
@@ -502,5 +471,27 @@ namespace Spindles {
         }
 
         return crc;
+    }
+
+    void RoboATCSpindle::updateRPM() {
+        if (_minFrequency > _maxFrequency) {
+            _minFrequency = _maxFrequency;
+        }
+
+        if (_speeds.size() == 0) {
+            SpindleSpeed minRPM = _minFrequency * 60 / 10;
+            SpindleSpeed maxRPM = _maxFrequency * 60 / 10;
+
+            shelfSpeeds(minRPM, maxRPM);
+        }
+        setupSpeeds(_maxFrequency);
+        _slop = std::max(_maxFrequency / 40, 1);
+
+        log_info("VFD: VFD settings read: Freq range(" << _minFrequency << " , " << _maxFrequency << ")]");
+    }
+
+    // Configuration registration
+    namespace {
+        SpindleFactory::InstanceBuilder<RoboATCSpindle> registration("RoboATCSpindle");
     }
 }

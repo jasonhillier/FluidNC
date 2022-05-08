@@ -18,7 +18,7 @@ namespace Spindles {
     class RoboATCSpindle : public Spindle {
     private:
         static const int RoboATCSpindle_RS485_MAX_MSG_SIZE = 16;  // more than enough for a modbus message
-        static const int MAX_RETRIES            = 5;   // otherwise the spindle is marked 'unresponsive'
+        static const int MAX_RETRIES            = 2;   // otherwise the spindle is marked 'unresponsive'
 
         void set_mode(SpindleState mode, bool critical);
         bool get_pins_and_settings();
@@ -58,17 +58,19 @@ namespace Spindles {
     protected:
         uint16_t _minFrequency = 0;   
         uint16_t _maxFrequency = 4000;  // H100 works with frequencies scaled by 10.
+
+        void updateRPM();
         // Commands:
-        virtual void direction_command(SpindleState mode, ModbusCommand& data) = 0;
+        virtual void direction_command(SpindleState mode, ModbusCommand& data) {}
         void set_speed_command(uint32_t rpm, ModbusCommand& data);
 
         // Commands that return the status. Returns nullptr if unavailable by this RoboATCSpindle (default):
         using response_parser = bool (*)(const uint8_t* response, RoboATCSpindle* spindle);
 
         virtual response_parser initialization_sequence(int index, ModbusCommand& data) { return nullptr; }
-        virtual response_parser get_current_speed(ModbusCommand& data) { return nullptr; }
+        response_parser get_current_speed(ModbusCommand& data);
         virtual response_parser get_current_direction(ModbusCommand& data) { return nullptr; }
-        virtual response_parser get_status_ok(ModbusCommand& data) = 0;
+        virtual response_parser get_status_ok(ModbusCommand& data) { return nullptr; }
         virtual bool            safety_polling() const { return true; }
 
         // The constructor sets these
@@ -106,6 +108,9 @@ namespace Spindles {
 
             Spindle::group(handler);
         }
+
+        // Name of the configurable. Must match the name registered in the cpp file.
+        const char* name() const override { return "RoboATCSpindle"; }
 
         virtual ~RoboATCSpindle() {}
     };
