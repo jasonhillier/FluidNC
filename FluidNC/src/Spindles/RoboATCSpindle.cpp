@@ -64,6 +64,21 @@ namespace Spindles {
 #endif
     }
 
+    void IRAM_ATTR RoboATCSpindle::direction_command(SpindleState mode, ModbusCommand& data) {
+        data.tx_length = 6;
+        data.rx_length = 6;
+
+        //[01] [06] [0201] [07D0] Set frequency to [07D0] = 200.0 Hz. (2000 is written!)
+
+        // data.msg[0] is omitted (modbus address is filled in later)
+        data.msg[1] = 0x06;  // Set register command
+        data.msg[2] = 0x00; //register_addr_high
+        data.msg[3] = 0x0B; //11 (LED)
+        //data.msg[4] = dev_speed >> 8; - BC 11/24/21
+        data.msg[4] = 0;
+        data.msg[5] = (mode != SpindleState::Disable);
+    }
+
     void IRAM_ATTR RoboATCSpindle::set_speed_command(uint32_t dev_speed, ModbusCommand& data) {
         data.tx_length = 6;
         data.rx_length = 6;
@@ -81,7 +96,7 @@ namespace Spindles {
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x06;  // Set register command
         data.msg[2] = 0x00; //register_addr_high
-        data.msg[3] = 0x0B; //11
+        data.msg[3] = 0x0C; //12 - SetPoint (lpos)
         //data.msg[4] = dev_speed >> 8; - BC 11/24/21
         data.msg[4] = dev_speed >> 8;
         data.msg[5] = dev_speed & 0xFF;
@@ -95,7 +110,7 @@ namespace Spindles {
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x03;
         data.msg[2] = 0x00;
-        data.msg[3] = 0x0B; //led
+        data.msg[3] = 0x07; //LPOS
         data.msg[4] = 0x00;
         data.msg[5] = 0x01;
 
@@ -103,7 +118,7 @@ namespace Spindles {
             // 01 04 04 [freq 16] [set freq 16] [crc16]
             uint16_t frequency = (uint16_t(response[3]) << 8) | uint16_t(response[4]);
 
-            log_info("GOT LED state" << frequency);
+            log_info("GOT LPOS state" << frequency);
 
             // Store speed for synchronization
             vfd->_sync_dev_speed = frequency;

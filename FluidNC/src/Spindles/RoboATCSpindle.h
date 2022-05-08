@@ -61,7 +61,7 @@ namespace Spindles {
 
         void updateRPM();
         // Commands:
-        virtual void direction_command(SpindleState mode, ModbusCommand& data) {}
+        void direction_command(SpindleState mode, ModbusCommand& data);
         void set_speed_command(uint32_t rpm, ModbusCommand& data);
 
         // Commands that return the status. Returns nullptr if unavailable by this RoboATCSpindle (default):
