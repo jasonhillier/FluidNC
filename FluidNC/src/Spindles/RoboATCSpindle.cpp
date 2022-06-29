@@ -96,7 +96,7 @@ namespace Spindles {
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x06;  // Set register command
         data.msg[2] = 0x00; //register_addr_high
-        data.msg[3] = 0x0C; //12 - SetPoint (lpos)
+        data.msg[3] = 0x07; //LPOS or //0xC=12 - SetPoint (lpos)
         //data.msg[4] = dev_speed >> 8; - BC 11/24/21
         data.msg[4] = dev_speed >> 8;
         data.msg[5] = dev_speed & 0xFF;
