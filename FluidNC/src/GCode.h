@@ -193,6 +193,8 @@ enum class GCodeWord : uint8_t {
     A = 15,
     B = 16,
     C = 17,
+    D = 18,
+    H = 19
 };
 
 // GCode parser position updating flags

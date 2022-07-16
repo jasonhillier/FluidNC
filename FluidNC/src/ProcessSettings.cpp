@@ -395,6 +395,7 @@ static Error home_c(const char* value, WebUI::AuthenticationLevel auth_level, Ch
     return home(bitnum_to_mask(C_AXIS));
 }
 static void write_limit_set(uint32_t mask, Channel& out) {
+<<<<<<< Updated upstream
     const char* motor0AxisName = "xyzabc";
     for (int axis = 0; axis < MAX_N_AXIS; axis++) {
         out << (bitnum_is_true(mask, Machine::Axes::motor_bit(axis, 0)) ? char(motor0AxisName[axis]) : ' ');
@@ -402,6 +403,15 @@ static void write_limit_set(uint32_t mask, Channel& out) {
     const char* motor1AxisName = "XYZABC";
     for (int axis = 0; axis < MAX_N_AXIS; axis++) {
         out << (bitnum_is_true(mask, Machine::Axes::motor_bit(axis, 1)) ? char(motor1AxisName[axis]) : ' ');
+=======
+    const char* motor0AxisName = "xyzabcdh";
+    for (int i = 0; i < MAX_N_AXIS; i++) {
+        out << (bitnum_is_true(mask, i) ? char(motor0AxisName[i]) : ' ');
+    }
+    const char* motor1AxisName = "XYZABCDH";
+    for (int i = 0; i < MAX_N_AXIS; i++) {
+        out << (bitnum_is_true(mask, i + 16) ? char(motor1AxisName[i]) : ' ');
+>>>>>>> Stashed changes
     }
 }
 static Error show_limits(const char* value, WebUI::AuthenticationLevel auth_level, Channel& out) {

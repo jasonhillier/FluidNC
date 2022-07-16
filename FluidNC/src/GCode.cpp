@@ -619,7 +619,26 @@ Error gc_execute_line(char* line, Channel& channel) {
                             FAIL(Error::GcodeUnsupportedCommand);
                         }
                         break;
-                    // case 'D': // Not supported
+                    /** 6th, 7th **/
+                    case 'D':
+                        if (n_axis > D_AXIS) {
+                            axis_word_bit               = GCodeWord::D;
+                            gc_block.values.xyz[D_AXIS] = value;
+                            set_bitnum(axis_words, D_AXIS);
+                        } else {
+                            FAIL(Error::GcodeUnsupportedCommand);
+                        }
+                        break;
+                    case 'H':
+                        if (n_axis > H_AXIS) {
+                            axis_word_bit               = GCodeWord::H;
+                            gc_block.values.xyz[H_AXIS] = value;
+                            set_bitnum(axis_words, H_AXIS);
+                        } else {
+                            FAIL(Error::GcodeUnsupportedCommand);
+                        }
+                        break;
+                    /** ******** **/
                     case 'E':
                         axis_word_bit     = GCodeWord::E;
                         gc_block.values.e = int_value;
@@ -883,7 +902,7 @@ Error gc_execute_line(char* line, Channel& channel) {
     // Pre-convert XYZ coordinate values to millimeters, if applicable.
     if (gc_block.modal.units == Units::Inches) {
         for (size_t idx = 0; idx < n_axis; idx++) {  // Axes indices are consistent, so loop may be used.
-            if ((idx < A_AXIS || idx > C_AXIS) && bitnum_is_true(axis_words, idx)) {
+            if ((idx < A_AXIS || idx > H_AXIS) && bitnum_is_true(axis_words, idx)) {
                 gc_block.values.xyz[idx] *= MM_PER_INCH;
             }
         }
@@ -1295,7 +1314,8 @@ Error gc_execute_line(char* line, Channel& channel) {
     if (axis_command != AxisCommand::None) {
         clear_bits(value_words,
                    (bitnum_to_mask(GCodeWord::X) | bitnum_to_mask(GCodeWord::Y) | bitnum_to_mask(GCodeWord::Z) |
-                    bitnum_to_mask(GCodeWord::A) | bitnum_to_mask(GCodeWord::B) | bitnum_to_mask(GCodeWord::C)));  // Remove axis words.
+                    bitnum_to_mask(GCodeWord::A) | bitnum_to_mask(GCodeWord::B) | bitnum_to_mask(GCodeWord::C) |
+                    bitnum_to_mask(GCodeWord::D) | bitnum_to_mask(GCodeWord::H)));  // Remove axis words.
     }
     if (value_words) {
         FAIL(Error::GcodeUnusedWords);  // [Unused words]

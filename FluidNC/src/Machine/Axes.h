@@ -16,7 +16,7 @@ namespace Machine {
         bool _switchedStepper = false;
 
     public:
-        static constexpr const char* _names = "XYZABC";
+        static constexpr const char* _names = "XYZABCDH";
 
         Axes();
 

@@ -28,8 +28,10 @@ const int Z_AXIS = 2;
 const int A_AXIS = 3;
 const int B_AXIS = 4;
 const int C_AXIS = 5;
+const int D_AXIS = 6;
+const int H_AXIS = 7;
 
-const int MAX_AXES = 6;
+const int MAX_AXES = 8;
 
 const int X2_AXIS = (X_AXIS + MAX_AXES);
 const int Y2_AXIS = (Y_AXIS + MAX_AXES);

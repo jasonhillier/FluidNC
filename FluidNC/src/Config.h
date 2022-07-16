@@ -27,7 +27,7 @@ Some features should not be changed. See notes below.
 
 const int SUPPORT_TASK_CORE = 1;  // Reference: CONFIG_ARDUINO_RUNNING_CORE = 1
 
-const int MAX_N_AXIS = 6;
+const int MAX_N_AXIS = 8;
 
 // Serial baud rate
 // OK to change, but the ESP32 boot text is 115200, so you will not see that is your
