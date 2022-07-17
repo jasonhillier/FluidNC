@@ -48,7 +48,6 @@ namespace MotorDrivers {
     }
     
     void EncodedStepper::init() {
-        _encoder_modbus_id = 0;
         _axis_index = axis_index();
 
         StandardStepper::init();
@@ -96,15 +95,13 @@ namespace MotorDrivers {
             // At this point next_cmd has been filled with a command block
             {
                 // Fill in the fields that are the same for all protocol variants
-                next_cmd.msg[0] = 1;//instance->_encoder_modbus_id;
+                next_cmd.msg[0] = instance->_encoder_modbus_id;
 
                 // Grabbed the command. Add the CRC16 checksum:
                 auto crc16                         = ModRTU_CRC(next_cmd.msg, next_cmd.tx_length);
                 next_cmd.msg[next_cmd.tx_length++] = (crc16 & 0xFF);
                 next_cmd.msg[next_cmd.tx_length++] = (crc16 & 0xFF00) >> 8;
                 next_cmd.rx_length += 2;
-
-                log_info("nex_cmd.msg0 (modbus_id)= " << next_cmd.msg[0]);
 
 //#ifdef DEBUG_RoboATCSpindle_ALL
                 if (parser == nullptr) {
@@ -126,7 +123,7 @@ namespace MotorDrivers {
                 size_t current_read = uart.readBytes(rx_message, next_cmd.rx_length, response_ticks);
                 read_length += current_read;
 
-                log_info("read " << current_read);
+                //log_info("read " << current_read);
 
                 while (read_length < next_cmd.rx_length && current_read > 0) {
                     // Try to read more; we're not there yet...
@@ -196,7 +193,7 @@ namespace MotorDrivers {
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x03;
         data.msg[2] = 0x00;
-        data.msg[3] = 0x06; //angle
+        data.msg[3] = 0x05; //angle_deg
         data.msg[4] = 0x00;
         data.msg[5] = 0x01;
 
