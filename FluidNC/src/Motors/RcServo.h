@@ -11,7 +11,7 @@ namespace MotorDrivers {
     protected:
         void config_message() override;
 
-        void set_location();
+        virtual void set_location();
 
         Pin      _output_pin;
         uint32_t _pwm_freq = SERVO_PWM_FREQ_DEFAULT;  // 50 Hz

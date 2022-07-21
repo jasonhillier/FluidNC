@@ -179,7 +179,7 @@ namespace MotorDrivers {
     //Feedback. Check if motor is in position.
     void EncodedStepper::update()
     {
-        float mpos = steps_to_mpos(motor_steps[_axis_index], _axis_index);  // get the axis machine position in mm
+        //float mpos = steps_to_mpos(motor_steps[_axis_index], _axis_index);  // get the axis machine position in mm
         //servo_pos  = mpos;                                                  // determine the current work position
 
         //ask the encoder where the motor really is
