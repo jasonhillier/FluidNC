@@ -19,7 +19,7 @@ namespace MotorDrivers {
     }
 
     void BldcServo::set_location() {
-        if (_disabled || _has_errors) {
+        if (_has_errors) {
             return;
         }
 
@@ -31,16 +31,29 @@ namespace MotorDrivers {
         float mpos = steps_to_mpos(get_axis_motor_steps(_axis_index), _axis_index);  // get the axis machine position in mm
         servo_pos  = mpos;                                         // determine the current work position
 
-        servo_pos ? _stop_pin.on() : _stop_pin.off();
-        
-        //log_info("servo_pos: " << servo_pos);
-        if (servo_pos >= 0)
+        if (servo_pos == 0 && _running)
         {
-            _dir_pin.off();
+            log_info(_axis_index << " servo_pos STOP");
+            _running=false;
+            _stop_pin.synchronousWrite(false);
         }
-        else
+        else if (servo_pos !=0 && !_running)
         {
-            _dir_pin.on();
+            log_info(_axis_index << " servo_pos RUN");
+            _running=true;
+            _stop_pin.synchronousWrite(true); //enable motor
+        }
+        
+        
+        if (servo_pos >= 0 && _reverse)
+        {
+            _reverse = false;
+            _dir_pin.synchronousWrite(false);
+        }
+        else if (servo_pos <0 && !_reverse)
+        {
+            _reverse = true;
+            _dir_pin.synchronousWrite(true);
         }
 
         // determine the pulse length
