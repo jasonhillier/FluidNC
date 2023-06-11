@@ -173,16 +173,24 @@ namespace MotorDrivers {
 #endif
                 }
             }
+
+            //just inject this for now TODO: fix it right
+            instance->update();
         }
     }
 
     //Feedback. Check if motor is in position.
     void EncodedStepper::update()
     {
-        //float mpos = steps_to_mpos(motor_steps[_axis_index], _axis_index);  // get the axis machine position in mm
-        //servo_pos  = mpos;                                                  // determine the current work position
+        if (sys.state == State::Idle)
+        {
+            float mpos = steps_to_mpos(get_axis_motor_steps(_axis_index), _axis_index);  // get the axis machine position in mm
+            float wco = gc_state.coord_system[_axis_index] + gc_state.coord_offset[_axis_index]; //get the work offset
+            float wpos = mpos - wco; //compute current work position
 
-        //ask the encoder where the motor really is
+            //ask the encoder where the motor really is
+            log_info("WORK POS to ANGLE: "<< wpos << " -> " << _current_angle);
+        }
     }
 
     EncodedStepper::response_parser EncodedStepper::get_encoder_pos(ModbusCommand& data)
@@ -193,18 +201,19 @@ namespace MotorDrivers {
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x03;
         data.msg[2] = 0x00;
-        data.msg[3] = 0x05; //angle_deg
+        data.msg[3] = 0x04; //total (incremented) angle
         data.msg[4] = 0x00;
         data.msg[5] = 0x01;
 
-        return [](const uint8_t* response, MotorDrivers::EncodedStepper* vfd) -> bool {
+        return [](const uint8_t* response, MotorDrivers::EncodedStepper* instance) -> bool {
             // 01 04 04 [freq 16] [set freq 16] [crc16]
             uint16_t angle = (uint16_t(response[3]) << 8) | uint16_t(response[4]);
 
-            log_info("GOT ANGLE " << angle);
+            //log_info("GOT ANGLE " << angle);
+            instance->_current_angle = angle;
 
             // Store speed for synchronization
-            //vfd->_sync_dev_speed = frequency;
+            //instance->_sync_dev_speed = frequency;
             return true;
         };
     }
@@ -243,11 +252,15 @@ namespace MotorDrivers {
 
         handler.section("uart", _uart);
         handler.item("modbus_id", _encoder_modbus_id, 0, 247); // per https://modbus.org/docs/PI_MBUS_300.pdf
+        handler.item("base_angle", _base_angle, -1, 365);
     }
 
     void EncodedStepper::afterParse() {
         if (_encoder_modbus_id > 0) {
             log_info("Using EncodedStepper Mode");
+        }
+        if (_base_angle > 0) {
+            log_info("Monitoring motor angle from baseline: " << _base_angle);
         }
     }
 

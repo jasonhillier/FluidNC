@@ -7,8 +7,11 @@
     EncodedStepper.cpp -- EncodedStepper type stepper drivers
 */
 
+#include "../Gcode.h"
 #include "StandardStepper.h"
 #include "../Uart.h"
+
+extern parser_state_t gc_state;
 
 namespace MotorDrivers {
     extern Uart _uart;
@@ -20,6 +23,8 @@ namespace MotorDrivers {
 
         Uart*   _uart      = nullptr;
         uint8_t _encoder_modbus_id;
+        uint32_t _base_angle;
+        uint32_t _current_angle = -1;
         int _axis_index;
 
         struct ModbusCommand {
