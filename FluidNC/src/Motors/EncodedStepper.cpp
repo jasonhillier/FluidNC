@@ -182,32 +182,55 @@ namespace MotorDrivers {
     //Feedback. Check if motor is in position.
     void EncodedStepper::update()
     {
+        int32_t angle_pos = 0;
+
+        //TODO: angle offset after homing
+
         if (sys.state == State::Idle)
         {
             float mpos = steps_to_mpos(get_axis_motor_steps(_axis_index), _axis_index);  // get the axis machine position in mm
             float wco = gc_state.coord_system[_axis_index] + gc_state.coord_offset[_axis_index]; //get the work offset
             float wpos = mpos - wco; //compute current work position
 
+            if (_angle_step_ratio > 0)
+                angle_pos = _current_angle / _angle_step_ratio;
+            else
+                angle_pos = _current_angle;
+
+            if (_homing_angle_offset == INT32_MIN)
+            {
+                _homing_angle_offset = angle_pos;
+            }
+
+            angle_pos -= _homing_angle_offset;
+
             //ask the encoder where the motor really is
-            log_info("WORK POS to ANGLE: "<< wpos << " -> " << _current_angle);
+            log_info("<M_ENC"<< _axis_index << ":" << wpos << "," << angle_pos << ">");
+        }
+        else if (sys.state == State::Homing)
+        {
+            _homing_angle_offset = INT32_MIN;
         }
     }
 
     EncodedStepper::response_parser EncodedStepper::get_encoder_pos(ModbusCommand& data)
     {
         data.tx_length = 6;
-        data.rx_length = 5;
+        data.rx_length = 7; //4-bytes payload
 
         // data.msg[0] is omitted (modbus address is filled in later)
         data.msg[1] = 0x03;
         data.msg[2] = 0x00;
-        data.msg[3] = 0x04; //total (incremented) angle
+        data.msg[3] = 0x09; //total (abs cumulative) angle
         data.msg[4] = 0x00;
-        data.msg[5] = 0x01;
+        data.msg[5] = 0x02; //fetch two registers
 
         return [](const uint8_t* response, MotorDrivers::EncodedStepper* instance) -> bool {
             // 01 04 04 [freq 16] [set freq 16] [crc16]
-            uint16_t angle = (uint16_t(response[3]) << 8) | uint16_t(response[4]);
+            uint16_t angle_h = (uint16_t(response[3]) << 8) | uint16_t(response[4]);
+            uint16_t angle_l = (uint16_t(response[5]) << 8) | uint16_t(response[6]);
+
+            int32_t angle = (int32_t(angle_h) << 16) | int32_t(angle_l);
 
             //log_info("GOT ANGLE " << angle);
             instance->_current_angle = angle;
@@ -252,15 +275,15 @@ namespace MotorDrivers {
 
         handler.section("uart", _uart);
         handler.item("modbus_id", _encoder_modbus_id, 0, 247); // per https://modbus.org/docs/PI_MBUS_300.pdf
-        handler.item("base_angle", _base_angle, -1, 365);
+        handler.item("angle_step_ratio", _angle_step_ratio, 0);
     }
 
     void EncodedStepper::afterParse() {
         if (_encoder_modbus_id > 0) {
-            log_info("Using EncodedStepper Mode");
+            log_info("Using EncodedStepper Driver: modbus_id=" << _encoder_modbus_id);
         }
-        if (_base_angle > 0) {
-            log_info("Monitoring motor angle from baseline: " << _base_angle);
+        if (_angle_step_ratio > 0) {
+            log_info("EncodedStepper ratio: " << _angle_step_ratio);
         }
     }
 

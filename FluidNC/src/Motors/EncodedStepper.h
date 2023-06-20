@@ -23,8 +23,9 @@ namespace MotorDrivers {
 
         Uart*   _uart      = nullptr;
         uint8_t _encoder_modbus_id;
-        uint32_t _base_angle;
-        uint32_t _current_angle = -1;
+        uint32_t _angle_step_ratio;
+        int32_t _current_angle = -1;
+        int32_t _homing_angle_offset = 0;
         int _axis_index;
 
         struct ModbusCommand {
