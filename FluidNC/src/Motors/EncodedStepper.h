@@ -17,7 +17,7 @@ namespace MotorDrivers {
     class EncodedStepper : public StandardStepper, public ModbusHandler {
     protected:
         uint32_t _angle_step_ratio;
-        int32_t _current_angle = -1;
+        int32_t _current_angle = INT32_MIN;
         int32_t _homing_angle_offset = 0;
         int _axis_index;
 

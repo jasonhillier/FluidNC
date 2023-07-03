@@ -9,6 +9,7 @@
 
 #include "EncodedStepper.h"
 #include "../System.h"  // mpos_to_steps() etc
+#include "../Machine/MachineConfig.h"
 
 namespace MotorDrivers {
     
@@ -53,7 +54,7 @@ namespace MotorDrivers {
             angle_pos -= _homing_angle_offset;
 
             //ask the encoder where the motor really is
-            log_info("<M_ENC"<< _axis_index << ":" << wpos << "," << angle_pos << ">");
+            log_info("<MENC_"<< config->_axes->axisName(_axis_index) << ":" << wpos << "," << angle_pos << ">");
         }
         else if (sys.state == State::Homing)
         {

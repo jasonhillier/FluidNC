@@ -4,8 +4,9 @@
 #include "../Uart.h"
 
 namespace MotorDrivers {
-    //extern Uart _uart;
 
+    const int MAX_MODBUS_HANDLES = 6;
+    
     class ModbusHandler {
         public:
             uint8_t _encoder_modbus_id;
@@ -16,9 +17,9 @@ namespace MotorDrivers {
     class Modbus {
         protected:
             static const int RS485_MAX_MSG_SIZE     = 16;  // more than enough for a modbus message
-            static const int MAX_RETRIES            = 2;   // otherwise the spindle is marked 'unresponsive'
+            static const int MAX_RETRIES            = 1;   // otherwise the motor is marked 'unresponsive'
 
-            static ModbusHandler* _firstHandler;
+            static ModbusHandler* _handlers[MAX_MODBUS_HANDLES];
 
             struct ModbusCommand {
                 bool critical;  // TODO SdB: change into `uint8_t critical : 1;`: We want more flags...
@@ -33,6 +34,7 @@ namespace MotorDrivers {
             static response_parser get_encoder_pos(ModbusCommand& data);
 
         private:
+            static bool _initialized;
             static QueueHandle_t uart_cmd_queue;
             static TaskHandle_t  uart_cmdTaskHandle;
             static void          uart_cmd_task(void* pvParameters);
@@ -44,7 +46,7 @@ namespace MotorDrivers {
         
         public:
             static Uart *_uart;
-            
+
             static void init(ModbusHandler* handler);
     };
 }

@@ -13,8 +13,9 @@ namespace MotorDrivers {
     QueueHandle_t Modbus::uart_cmd_queue     = nullptr;
     TaskHandle_t  Modbus::uart_cmdTaskHandle = nullptr;
 
-    ModbusHandler* Modbus::_firstHandler = nullptr;
+    ModbusHandler* Modbus::_handlers[] = { NULL };
     Uart* Modbus::_uart;
+    bool Modbus::_initialized = false;
 
     void Modbus::reportParsingErrors(ModbusCommand cmd, uint8_t* rx_message, size_t read_length) {
 //#ifdef DEBUG_RoboATCSpindle
@@ -43,13 +44,18 @@ namespace MotorDrivers {
 
     void Modbus::init(ModbusHandler* handler)
     {
-        //lazy load
-        if (_firstHandler != NULL)
+        for(int i=0; i<MAX_MODBUS_HANDLES; i++)
         {
-            return;
+            if (_handlers[i] == NULL)
+            {
+                _handlers[i] = handler;
+                break;
+            }
         }
+        //init only once
+        if (_initialized) return;
+        _initialized = true;
         //else continue with first init
-        _firstHandler = handler;
 
         _uart->begin();
 
@@ -89,92 +95,103 @@ namespace MotorDrivers {
             std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);  // read fence for settings
             response_parser parser = nullptr;
 
-            parser = get_encoder_pos(next_cmd);
-
-            // At this point next_cmd has been filled with a command block
+            for(int i=0; i<MAX_MODBUS_HANDLES; i++)
             {
-                // Fill in the fields that are the same for all protocol variants
-                next_cmd.msg[0] = _firstHandler->_encoder_modbus_id;
+                if (_handlers[i] == NULL) break;
 
-                // Grabbed the command. Add the CRC16 checksum:
-                auto crc16                         = ModRTU_CRC(next_cmd.msg, next_cmd.tx_length);
-                next_cmd.msg[next_cmd.tx_length++] = (crc16 & 0xFF);
-                next_cmd.msg[next_cmd.tx_length++] = (crc16 & 0xFF00) >> 8;
-                next_cmd.rx_length += 2;
+                parser = get_encoder_pos(next_cmd);
 
-//#ifdef DEBUG_RoboATCSpindle_ALL
-                if (parser == nullptr) {
-                    hex_msg(next_cmd.msg, "RS485 Tx: ", next_cmd.tx_length);
-                }
-//#endif
-            }
+                // At this point next_cmd has been filled with a command block
+                {
+                    // Fill in the fields that are the same for all protocol variants
+                    next_cmd.msg[0] = _handlers[i]->_encoder_modbus_id;
 
-            // Assume for the worst, and retry...
-            int retry_count = 0;
-            for (; retry_count < MAX_RETRIES; ++retry_count) {
-                // Flush the UART and write the data:
-                _uart->flush();
-                _uart->write(next_cmd.msg, next_cmd.tx_length);
-                _uart->flushTxTimed(response_ticks);
+                    // Grabbed the command. Add the CRC16 checksum:
+                    auto crc16                         = ModRTU_CRC(next_cmd.msg, next_cmd.tx_length);
+                    next_cmd.msg[next_cmd.tx_length++] = (crc16 & 0xFF);
+                    next_cmd.msg[next_cmd.tx_length++] = (crc16 & 0xFF00) >> 8;
+                    next_cmd.rx_length += 2;
 
-                // Read the response
-                size_t read_length  = 0;
-                size_t current_read = _uart->readBytes(rx_message, next_cmd.rx_length, response_ticks);
-                read_length += current_read;
-
-                //log_info("read " << current_read);
-
-                while (read_length < next_cmd.rx_length && current_read > 0) {
-                    // Try to read more; we're not there yet...
-                    current_read = _uart->readBytes(rx_message + read_length, next_cmd.rx_length - read_length, response_ticks);
-                    read_length += current_read;
-                }
-
-                // Generate crc16 for the response:
-                auto crc16response = ModRTU_CRC(rx_message, next_cmd.rx_length - 2);
-
-                if (read_length == next_cmd.rx_length &&                             // check expected length
-                    rx_message[0] == _firstHandler->_encoder_modbus_id &&                         // check address
-                    rx_message[read_length - 1] == (crc16response & 0xFF00) >> 8 &&  // check CRC byte 1
-                    rx_message[read_length - 2] == (crc16response & 0xFF)) {         // check CRC byte 1
-
-                    // Success
-                    unresponsive = false;
-                    retry_count  = MAX_RETRIES + 1;  // stop retry'ing
-
-                    // Should we parse this?
-                    if (parser != nullptr) {
-                        if (parser(rx_message, _firstHandler)) {
-                            // If we're initializing, move to the next initialization command:
-                            if (pollidx < 0) {
-                                --pollidx;
-                            }
-                        } else {
-                            // Parsing failed
-                            reportParsingErrors(next_cmd, rx_message, read_length);
-
-                            // If we were initializing, move back to where we started.
-                            unresponsive = true;
-                            pollidx      = -1;  // Re-initializing the RoboATCSpindle seems like a plan
-                            log_info("EncoderStepper RS485 did not give a satisfying response");
-                        }
+    //#ifdef DEBUG_RoboATCSpindle_ALL
+                    if (parser == nullptr) {
+                        hex_msg(next_cmd.msg, "RS485 Tx: ", next_cmd.tx_length);
                     }
-                } else {
-                    reportCmdErrors(next_cmd, rx_message, read_length, _firstHandler->_encoder_modbus_id);
-
-                    // Wait a bit before we retry. Set the delay to poll-rate. Not sure
-                    // if we should use a different value...
-                    vTaskDelay(RS485_POLL_RATE / portTICK_PERIOD_MS);
-
-#ifdef DEBUG_TASK_STACK
-                    static UBaseType_t uxHighWaterMark = 0;
-                    reportTaskStackSize(uxHighWaterMark);
-#endif
+    //#endif
                 }
-            }
 
-            //just inject this for now TODO: fix it right
-            _firstHandler->update();
+                // Assume for the worst, and retry...
+                int retry_count = 0;
+                for (; retry_count < MAX_RETRIES; ++retry_count) {
+                    // Flush the UART and write the data:
+                    _uart->flush();
+                    _uart->write(next_cmd.msg, next_cmd.tx_length);
+                    _uart->flushTxTimed(response_ticks);
+
+                    // Read the response
+                    size_t read_length  = 0;
+                    size_t current_read = _uart->readBytes(rx_message, next_cmd.rx_length, response_ticks);
+                    read_length += current_read;
+
+                    //log_info("read " << current_read);
+
+                    while (read_length < next_cmd.rx_length && current_read > 0) {
+                        // Try to read more; we're not there yet...
+                        current_read = _uart->readBytes(rx_message + read_length, next_cmd.rx_length - read_length, response_ticks);
+                        read_length += current_read;
+                    }
+
+                    // Generate crc16 for the response:
+                    auto crc16response = ModRTU_CRC(rx_message, next_cmd.rx_length - 2);
+
+                    if (read_length == next_cmd.rx_length &&                             // check expected length
+                        rx_message[0] == _handlers[i]->_encoder_modbus_id &&                         // check address
+                        rx_message[read_length - 1] == (crc16response & 0xFF00) >> 8 &&  // check CRC byte 1
+                        rx_message[read_length - 2] == (crc16response & 0xFF)) {         // check CRC byte 1
+
+                        // Success
+                        unresponsive = false;
+                        retry_count  = MAX_RETRIES + 1;  // stop retry'ing
+
+                        // Should we parse this?
+                        if (parser != nullptr) {
+                            if (parser(rx_message, _handlers[i])) {
+                                // If we're initializing, move to the next initialization command:
+                                if (pollidx < 0) {
+                                    --pollidx;
+                                }
+                            } else {
+                                // Parsing failed
+                                reportParsingErrors(next_cmd, rx_message, read_length);
+
+                                // If we were initializing, move back to where we started.
+                                unresponsive = true;
+                                pollidx      = -1;  // Re-initializing the RoboATCSpindle seems like a plan
+                                log_info("EncoderStepper RS485 did not give a satisfying response");
+                            }
+                        }
+                    } else {
+                        reportCmdErrors(next_cmd, rx_message, read_length, _handlers[i]->_encoder_modbus_id);
+
+                        // Wait a bit before we retry. Set the delay to poll-rate. Not sure
+                        // if we should use a different value...
+                        vTaskDelay(RS485_POLL_RATE / portTICK_PERIOD_MS);
+
+    #ifdef DEBUG_TASK_STACK
+                        static UBaseType_t uxHighWaterMark = 0;
+                        reportTaskStackSize(uxHighWaterMark);
+    #endif
+                    }
+                }
+
+                //if retry failed, then invalidate data
+                if (retry_count > MAX_RETRIES)
+                {
+                    //_handlers[i]->onSetCurrentAngle(INT32_MIN);
+                }
+
+                //just inject this for now TODO: fix it right
+                _handlers[i]->update();
+            }
         }
     }
 
@@ -197,7 +214,7 @@ namespace MotorDrivers {
 
             int32_t angle = (int32_t(angle_h) << 16) | int32_t(angle_l);
 
-            log_info("GOT ANGLE " << angle);
+            //log_info("GOT ANGLE " << angle);
             instance->onSetCurrentAngle(angle);
 
             // Store speed for synchronization
