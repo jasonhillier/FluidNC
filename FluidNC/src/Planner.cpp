@@ -291,6 +291,19 @@ void plan_update_velocity_profile_parameters() {
     pl.previous_nominal_speed = prev_nominal_speed;  // Update prev nominal speed for next incoming block.
 }
 
+// Re-calculates buffered motions parameters upon a tool-based override change.
+void plan_update_tool_profile_parameters(float tool_len_diff) {
+    uint8_t       block_index = block_buffer_tail;
+    plan_block_t* block;
+    block         = &block_buffer[block_index];
+    if (block_index != block_buffer_head) {
+        //INJECT a relative movement of the TOOL_LENGTH_OFFSET_AXIS to the new offset postion at the beginning
+        // of the motion plan.
+        //TODO: HACK: need to research what effects this has on the wider motion plan
+        block->steps[TOOL_LENGTH_OFFSET_AXIS] -= mpos_to_steps(tool_len_diff, TOOL_LENGTH_OFFSET_AXIS);
+    }
+}
+
 bool plan_buffer_line(float* target, plan_line_data_t* pl_data) {
     // Prepare and initialize new block. Copy relevant pl_data for block execution.
     plan_block_t* block = &block_buffer[block_buffer_head];

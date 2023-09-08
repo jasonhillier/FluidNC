@@ -106,6 +106,9 @@ float plan_compute_profile_nominal_speed(plan_block_t* block);
 // Re-calculates buffered motions profile parameters upon a motion-based override change.
 void plan_update_velocity_profile_parameters();
 
+// Re-calculates buffered motions profile parameters upon a tool-based override change.
+void plan_update_tool_profile_parameters(float tool_len_diff);
+
 // Reset the planner position vector (in steps)
 void plan_sync_position();
 

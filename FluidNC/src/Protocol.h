@@ -83,6 +83,7 @@ enum AccessoryOverride {
 };
 
 extern ArgEvent feedOverrideEvent;
+extern ArgEvent toolLenOverrideEvent;
 extern ArgEvent rapidOverrideEvent;
 extern ArgEvent spindleOverrideEvent;
 extern ArgEvent accessoryOverrideEvent;

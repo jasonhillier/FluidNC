@@ -974,6 +974,17 @@ static void protocol_do_feed_override(void* incrementvp) {
     }
 }
 
+static void protocol_do_tool_len_override(void *amount)
+{
+    float tool_len_off = *(static_cast<float*>(amount));
+    //recaculate already planned blocks with the difference between new and old tool length
+    plan_update_tool_profile_parameters(tool_len_off - gc_state.tool_length_offset);
+    //have all newly planned blocks use new tool length
+    gc_state.tool_length_offset = tool_len_off;
+    //ensure current planning includes changes
+    plan_cycle_reinitialize();
+}
+
 static void protocol_do_rapid_override(void* percentvp) {
     int percent = int(percentvp);
     if (percent != sys.r_override) {
@@ -1081,6 +1092,7 @@ void protocol_do_rt_reset() {
 }
 
 ArgEvent feedOverrideEvent { protocol_do_feed_override };
+ArgEvent toolLenOverrideEvent { protocol_do_tool_len_override };
 ArgEvent rapidOverrideEvent { protocol_do_rapid_override };
 ArgEvent spindleOverrideEvent { protocol_do_spindle_override };
 ArgEvent accessoryOverrideEvent { protocol_do_accessory_override };

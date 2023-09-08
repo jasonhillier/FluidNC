@@ -85,6 +85,9 @@ void heapCheckTask(void* pvParameters) {
 
 // Act upon a realtime character
 void execute_realtime_command(Cmd command, Channel& channel) {
+    String buffer;
+    float value;
+
     switch (command) {
         case Cmd::Reset:
             log_debug("Cmd::Reset");
@@ -128,6 +131,14 @@ void execute_realtime_command(Cmd command, Channel& channel) {
             break;
         case Cmd::FeedOvrFineMinus:
             protocol_send_event(&feedOverrideEvent, -FeedOverride::FineIncrement);
+            break;
+        case Cmd::ToolLengthOvr:
+            buffer = channel.readStringUntil('\n');
+            if (buffer.length()>0) {
+                value = buffer.toFloat();
+                log_info("TOOL_LEN_OFFSET: " << value);
+                protocol_send_event(&toolLenOverrideEvent, &value);
+            };
             break;
         case Cmd::RapidOvrReset:
             protocol_send_event(&rapidOverrideEvent, RapidOverride::Default);
