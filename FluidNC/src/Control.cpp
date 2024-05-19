@@ -55,8 +55,11 @@ bool Control::startup_check() {
     bool ret = false;
     for (auto pin : _pins) {
         if (pin->get()) {
-            log_error(pin->_legend << " is active at startup");
-            ret = true;
+            if (pin->letter() != 'H')
+            {
+                log_error(pin->_legend << " is active at startup");
+                ret = true;
+            }
         }
     }
     return ret;
